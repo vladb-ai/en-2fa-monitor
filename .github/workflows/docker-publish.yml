@@ -31,11 +31,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Immutable tags only: a bare short commit SHA (e.g. :a6d3852) per push,
+          # and the git tag name on `v*` releases. No mutable `latest`/branch tags.
           tags: |
-            type=ref,event=branch
+            type=sha,format=short,prefix=
             type=ref,event=tag
-            type=sha,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
