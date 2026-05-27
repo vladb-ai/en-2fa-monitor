@@ -1,0 +1,30 @@
+# en-2fa-monitor service for the era-mainnet network (Ethereum mainnet).
+#
+# Paste this block under `services:` in the era-mainnet docker-compose.yml
+# (the per-network 2FA EN compose). The monitor needs no DB/EN access — it only
+# uses the L1 RPC, which that compose already provides as $ETH_RPC_URL (mainnet).
+#
+# Add these to that compose's .env:
+#   SIGNERS=0x...,0x...,0x...        # signer addresses registered for era-mainnet
+#   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
+#
+# For ONE shared Slack channel across networks, use the same SLACK_WEBHOOK_URL here
+# and in stage-validium's .env — the --network-name prefix keeps messages distinct.
+#
+# The image must be pullable: make the GHCR package public, or `docker login ghcr.io`.
+
+  en-2fa-monitor:
+    image: ghcr.io/vladb-ai/en-2fa-monitor:latest
+    restart: always
+    command:
+      - --eth-rpc-url=$ETH_RPC_URL
+      - --validator-address=0xdC26B08F0335b68721F64001C38b05D0BC9B539d
+      - --chain-address=0x32400084C286CF3E17e7B677ea9583e60a000324
+      - --signers=$SIGNERS
+      - --network-name=era-mainnet
+      - --min-balance-eth=0.1
+      - --poll-interval-secs=120
+      - --stall-secs=10800
+      - --alert-cooldown-secs=3600
+      - --heartbeat-secs=86400
+      - --slack-webhook-url=$SLACK_WEBHOOK_URL

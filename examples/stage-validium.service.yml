@@ -1,0 +1,27 @@
+# en-2fa-monitor service for the stage-validium network (Sepolia).
+#
+# Paste this block under `services:` in the stage-validium docker-compose.yml
+# (the per-network 2FA EN compose). The monitor needs no DB/EN access — it only
+# uses the L1 RPC, which that compose already provides as $ETH_RPC_URL (Sepolia).
+#
+# Add these to that compose's .env:
+#   SIGNERS=0x...,0x...,0x...        # signer addresses registered for stage-validium
+#   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
+#
+# The image must be pullable: make the GHCR package public, or `docker login ghcr.io`.
+
+  en-2fa-monitor:
+    image: ghcr.io/vladb-ai/en-2fa-monitor:latest
+    restart: always
+    command:
+      - --eth-rpc-url=$ETH_RPC_URL
+      - --validator-address=0x7De650653744Aa36eB6de0b384073fc3Cfe03275
+      - --chain-address=0x496a9bcdd27b50ba355fc6d7183f3cdbccc06a51
+      - --signers=$SIGNERS
+      - --network-name=stage-validium
+      - --min-balance-eth=0.02
+      - --poll-interval-secs=120
+      - --stall-secs=10800
+      - --alert-cooldown-secs=21600
+      - --heartbeat-secs=86400
+      - --slack-webhook-url=$SLACK_WEBHOOK_URL
