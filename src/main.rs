@@ -273,6 +273,8 @@ async fn main() -> Result<()> {
     let mut activity: HashMap<Address, SignerActivity> = HashMap::new();
     let mut last_executed: Option<U256> = None;
     let mut executed_changed_at = Instant::now();
+    let mut last_committed: Option<U256> = None;
+    let mut committed_changed_at = Instant::now();
     let mut last_heartbeat = Instant::now();
 
     loop {
@@ -289,6 +291,8 @@ async fn main() -> Result<()> {
             &mut activity,
             &mut last_executed,
             &mut executed_changed_at,
+            &mut last_committed,
+            &mut committed_changed_at,
         )
         .await
         {
@@ -338,6 +342,8 @@ async fn run_cycle(
     activity: &mut HashMap<Address, SignerActivity>,
     last_executed: &mut Option<U256>,
     executed_changed_at: &mut Instant,
+    last_committed: &mut Option<U256>,
+    committed_changed_at: &mut Instant,
 ) -> Result<()> {
     // --- Threshold + how many signers are actually usable (funded AND a member) ---
     let threshold = validator
@@ -424,8 +430,18 @@ async fn run_cycle(
         *last_executed = Some(executed);
         *executed_changed_at = now;
     }
+    if Some(committed) != *last_committed {
+        *last_committed = Some(committed);
+        *committed_changed_at = now;
+    }
     let exec_stalled =
         lag >= U256::from(exec_lag_alert) && now.duration_since(*executed_changed_at) >= stall;
+
+    // The chain is actively producing work to sign if it has committed a new batch within the
+    // last `stall` window. Every healthy signer is expected to approve every batch, so a signer
+    // silent across this window while the chain keeps committing is treated as down — even if the
+    // network still executes via the other signers (early warning before threshold is at risk).
+    let chain_producing = now.duration_since(*committed_changed_at) <= stall;
 
     alerts
         .evaluate(
@@ -440,11 +456,8 @@ async fn run_cycle(
         )
         .await;
 
-    // --- Per-signer liveness: who is silent while execution is genuinely halted? ---
-    // Gated on `exec_stalled` (not just `lag`): with a low EXEC_LAG_ALERT and a k-of-n
-    // threshold, most signers are legitimately idle at any moment, so we only point at
-    // silent signers once the network has actually stopped executing.
-    if exec_stalled {
+    // --- Per-signer liveness: who is silent while the chain keeps committing batches? ---
+    if chain_producing {
         for &signer in signers {
             if let Some(act) = activity.get(&signer) {
                 let idle = now.duration_since(act.nonce_changed_at) >= stall;
@@ -453,8 +466,9 @@ async fn run_cycle(
                         &format!("inactive:{signer:?}"),
                         idle,
                         &format!(
-                            "signer {signer:?} has sent no L1 tx for over {}s while {lag} batches \
-                             await execution — node may be down",
+                            "signer {signer:?} has sent no L1 tx for over {}s while the chain keeps \
+                             committing batches — node may be down (every healthy signer should \
+                             approve every batch)",
                             stall.as_secs()
                         ),
                         &format!("signer {signer:?} is active again"),
@@ -463,7 +477,7 @@ async fn run_cycle(
             }
         }
     } else {
-        // Execution is progressing (or no real backlog): clear any stale inactivity alerts.
+        // Chain isn't committing new batches: nothing to sign, so clear any inactivity alerts.
         for &signer in signers {
             alerts
                 .evaluate(
