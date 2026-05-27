@@ -32,3 +32,47 @@ cargo run -- \
 All flags can be set via env vars instead (see `.env.example`); copy it to `.env` and the binary
 loads it automatically. Telegram is configured with `--telegram-bot-token` + `--telegram-chat-id`.
 If no channel is configured, alerts are only logged.
+
+## Run with Docker Compose
+
+The bundled `docker-compose.yml` runs the monitor as a single always-restart service, in the same
+style as the per-network 2FA EN setups. It reads secrets/RPC from a `.env` file next to the compose
+file:
+
+```bash
+cp .env.example .env
+# edit .env: set ETH_RPC_URL, SIGNERS, and SLACK_WEBHOOK_URL (and/or TELEGRAM_*)
+docker compose up -d
+docker compose logs -f
+```
+
+The compose file pins the recommended mainnet values (validator/chain addresses, balance and stall
+thresholds). By default it builds the image from this repo; to use the published image instead,
+comment out `build: .` and uncomment the `image:` line.
+
+### Adding it to an existing per-network EN compose
+
+If you already run a per-network `docker-compose.yml` (external-node + postgres + en-2fa), drop this
+service alongside the others. It needs no DB/EN access — only the L1 RPC:
+
+```yaml
+  en-2fa-monitor:
+    image: ghcr.io/vladb-ai/en-2fa-monitor:latest
+    restart: always
+    environment:
+      ETH_RPC_URL: $ETH_RPC_URL
+      VALIDATOR_ADDRESS: "0xdC26B08F0335b68721F64001C38b05D0BC9B539d"
+      CHAIN_ADDRESS: "0x32400084C286CF3E17e7B677ea9583e60a000324"
+      SIGNERS: $SIGNERS                       # comma-separated signer addresses
+      NETWORK_NAME: "era-mainnet"
+      MIN_BALANCE_ETH: "0.1"
+      EXEC_LAG_ALERT: "20"
+      STALL_SECS: "10800"
+      POLL_INTERVAL_SECS: "120"
+      ALERT_COOLDOWN_SECS: "3600"
+      HEARTBEAT_SECS: "86400"
+      SLACK_WEBHOOK_URL: $SLACK_WEBHOOK_URL
+```
+
+A GitHub Actions workflow publishes the image to `ghcr.io/vladb-ai/en-2fa-monitor` on every push to
+the default branch (and on `v*` tags), so the `image:` reference above stays current.
