@@ -57,7 +57,7 @@ service alongside the others. It needs no DB/EN access — only the L1 RPC:
 
 ```yaml
   en-2fa-monitor:
-    image: ghcr.io/vladb-ai/en-2fa-monitor:latest
+    image: ghcr.io/vladb-ai/en-2fa-monitor:4e93a9b
     restart: always
     environment:
       ETH_RPC_URL: $ETH_RPC_URL
@@ -74,5 +74,9 @@ service alongside the others. It needs no DB/EN access — only the L1 RPC:
       SLACK_WEBHOOK_URL: $SLACK_WEBHOOK_URL
 ```
 
-A GitHub Actions workflow publishes the image to `ghcr.io/vladb-ai/en-2fa-monitor` on every push to
-the default branch (and on `v*` tags), so the `image:` reference above stays current.
+### Image tags
+
+Images are pinned to immutable tags only — there is no `latest`. A GitHub Actions workflow
+publishes `ghcr.io/vladb-ai/en-2fa-monitor:<short-commit-sha>` on every push (e.g. `:4e93a9b`), and
+`:<tag>` on `v*` releases. To upgrade, bump the tag in your compose to the build you want; find
+available tags under the repo's **Packages**, or use the short SHA of the commit you want to run.
