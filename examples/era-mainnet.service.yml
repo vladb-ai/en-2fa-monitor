@@ -5,7 +5,9 @@
 # uses the L1 RPC, which that compose already provides as $ETH_RPC_URL (mainnet).
 #
 # Add these to that compose's .env:
-#   SIGNERS=0x...,0x...,0x...        # signer addresses registered for era-mainnet
+#   SIGNERS=@alice=0x...,@bob=0x...  # signer addresses registered for era-mainnet.
+#                                    # Use `label=0xADDR`; a Slack mention (@handle or <@U123>)
+#                                    # as the label pings that person on their alerts.
 #   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
 #
 # For ONE shared Slack channel across networks, use the same SLACK_WEBHOOK_URL here

@@ -5,7 +5,9 @@
 # uses the L1 RPC, which that compose already provides as $ETH_RPC_URL (Sepolia).
 #
 # Add these to that compose's .env:
-#   SIGNERS=0x...,0x...,0x...        # signer addresses registered for stage-validium
+#   SIGNERS=@alice=0x...,@bob=0x...  # signer addresses registered for stage-validium.
+#                                    # Use `label=0xADDR`; a Slack mention (@handle or <@U123>)
+#                                    # as the label pings that person on their alerts.
 #   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
 #
 # The image must be pullable: make the GHCR package public, or `docker login ghcr.io`.

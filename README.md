@@ -33,6 +33,26 @@ All flags can be set via env vars instead (see `.env.example`); copy it to `.env
 loads it automatically. Telegram is configured with `--telegram-bot-token` + `--telegram-chat-id`.
 If no channel is configured, alerts are only logged.
 
+### Naming signers / pinging people on Slack
+
+Each `--signers` entry may carry a label as `label=0xADDRESS`, shown in every alert about that
+signer so you can tell which operator is affected:
+
+```
+--signers '@alice=0xaaaa...,@bob=0xbbbb...,carol <@U0C4R0L>=0xcccc...'
+```
+
+Make the label a **Slack mention** to actively ping that person when their signer alerts (low
+balance, de-registered, or gone silent):
+
+- `@alice` — pings via Slack's `link_names` (enabled automatically on the webhook post).
+- `<@U012ABC>` — a Slack **user ID**, which always renders as a mention. Find it in Slack: profile
+  → ⋯ → *Copy member ID*. More reliable than `@handle` if display names are ambiguous.
+
+Bare `0xADDRESS` entries (no label) still work and just show the address. Network-wide alerts
+(execution stalled, below threshold) aren't signer-specific; to ping a group/channel on those,
+include `<!here>` or `<!subteam^ID>` in a future global-mention option — ask if you want that wired.
+
 ## Run with Docker Compose
 
 The bundled `docker-compose.yml` runs the monitor as a single always-restart service, in the same

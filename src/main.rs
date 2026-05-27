@@ -64,6 +64,9 @@ struct Args {
     chain_address: String,
 
     /// Comma-separated list of signer addresses to watch (the set the owner funds/registers).
+    /// Each entry may optionally carry a human-readable label as `label=0xADDRESS`
+    /// (e.g. `alice=0xabc...,bob=0xdef...`); the label is shown in alerts so you can tell
+    /// which operator is affected. Bare `0xADDRESS` entries (no label) are also accepted.
     #[arg(long, env = "SIGNERS", value_delimiter = ',')]
     signers: Vec<String>,
 
@@ -134,7 +137,10 @@ impl Notifier {
         info!(alert = %text, "dispatching alert");
 
         if let Some(url) = &self.slack_webhook_url {
-            let body = serde_json::json!({ "text": text });
+            // `link_names` makes Slack parse `@handle`/`#channel` in the text into real mentions
+            // (so a signer label like `@alice` actually pings them). `<@U123>` ID mentions and
+            // `<!here>`/`<!channel>` always work regardless.
+            let body = serde_json::json!({ "text": text, "link_names": true });
             if let Err(e) = self.http.post(url).json(&body).send().await {
                 warn!("failed to post Slack alert: {e}");
             }
@@ -195,6 +201,15 @@ impl AlertManager {
     }
 }
 
+/// Human-friendly identifier for a signer in alert text: `label (0xADDRESS)` if a label was
+/// configured, otherwise just the address.
+fn signer_name(addr: &Address, labels: &HashMap<Address, String>) -> String {
+    match labels.get(addr) {
+        Some(label) => format!("{label} ({addr:?})"),
+        None => format!("{addr:?}"),
+    }
+}
+
 /// Per-signer state we carry across cycles to detect liveness (nonce movement over time).
 struct SignerActivity {
     last_nonce: U256,
@@ -216,11 +231,23 @@ async fn main() -> Result<()> {
     if args.signers.is_empty() {
         return Err(anyhow!("no signers configured; set --signers / SIGNERS"));
     }
-    let signers: Vec<Address> = args
-        .signers
-        .iter()
-        .map(|s| parse_address(s).with_context(|| format!("bad signer address {s}")))
-        .collect::<Result<_>>()?;
+    // Each entry is either `0xADDRESS` or `label=0xADDRESS`. The label (if any) is shown in
+    // alerts so the owner can tell which operator is affected without decoding a hex address.
+    let mut signers: Vec<Address> = Vec::with_capacity(args.signers.len());
+    let mut labels: HashMap<Address, String> = HashMap::new();
+    for entry in &args.signers {
+        let (label, addr_str) = match entry.split_once('=') {
+            Some((label, addr)) => (Some(label.trim().to_string()), addr.trim()),
+            None => (None, entry.trim()),
+        };
+        let addr = parse_address(addr_str).with_context(|| format!("bad signer address {addr_str}"))?;
+        signers.push(addr);
+        if let Some(label) = label {
+            if !label.is_empty() {
+                labels.insert(addr, label);
+            }
+        }
+    }
 
     if args.slack_webhook_url.is_none()
         && (args.telegram_bot_token.is_none() || args.telegram_chat_id.is_none())
@@ -283,6 +310,7 @@ async fn main() -> Result<()> {
             &validator,
             &diamond,
             &signers,
+            &labels,
             min_balance_wei,
             args.min_balance_eth,
             args.exec_lag_alert,
@@ -334,6 +362,7 @@ async fn run_cycle(
     validator: &ValidatorContract<Provider<Http>>,
     diamond: &DiamondGetters<Provider<Http>>,
     signers: &[Address],
+    labels: &HashMap<Address, String>,
     min_balance_wei: U256,
     min_balance_eth: f64,
     exec_lag_alert: u64,
@@ -374,17 +403,20 @@ async fn run_cycle(
             usable += 1;
         }
 
+        // Human-friendly identifier for alert text; the alert key stays keyed on the raw address.
+        let name = signer_name(&signer, labels);
+
         // Funds alert.
         alerts
             .evaluate(
                 &format!("low_balance:{signer:?}"),
                 !balance_ok,
                 &format!(
-                    "signer {signer:?} low balance: {} ETH (< {min_balance_eth} ETH)",
+                    "signer {name} low balance: {} ETH (< {min_balance_eth} ETH)",
                     ethers::utils::format_ether(balance)
                 ),
                 &format!(
-                    "signer {signer:?} balance restored: {} ETH",
+                    "signer {name} balance restored: {} ETH",
                     ethers::utils::format_ether(balance)
                 ),
             )
@@ -395,8 +427,8 @@ async fn run_cycle(
             .evaluate(
                 &format!("not_member:{signer:?}"),
                 !is_member,
-                &format!("signer {signer:?} is NOT a registered multisig member"),
-                &format!("signer {signer:?} is a registered multisig member again"),
+                &format!("signer {name} is NOT a registered multisig member"),
+                &format!("signer {name} is a registered multisig member again"),
             )
             .await;
 
@@ -461,17 +493,18 @@ async fn run_cycle(
         for &signer in signers {
             if let Some(act) = activity.get(&signer) {
                 let idle = now.duration_since(act.nonce_changed_at) >= stall;
+                let name = signer_name(&signer, labels);
                 alerts
                     .evaluate(
                         &format!("inactive:{signer:?}"),
                         idle,
                         &format!(
-                            "signer {signer:?} has sent no L1 tx for over {}s while the chain keeps \
+                            "signer {name} has sent no L1 tx for over {}s while the chain keeps \
                              committing batches — node may be down (every healthy signer should \
                              approve every batch)",
                             stall.as_secs()
                         ),
-                        &format!("signer {signer:?} is active again"),
+                        &format!("signer {name} is active again"),
                     )
                     .await;
             }
@@ -484,7 +517,7 @@ async fn run_cycle(
                     &format!("inactive:{signer:?}"),
                     false,
                     "",
-                    &format!("signer {signer:?} is active again"),
+                    &format!("signer {} is active again", signer_name(&signer, labels)),
                 )
                 .await;
         }
