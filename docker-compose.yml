@@ -15,7 +15,7 @@ services:
       SIGNERS: ${SIGNERS}
       NETWORK_NAME: "era-mainnet"
       MIN_BALANCE_ETH: "0.1"
-      EXEC_LAG_ALERT: "20"
+      EXEC_LAG_ALERT: "1"
       STALL_SECS: "10800"
       POLL_INTERVAL_SECS: "120"
       ALERT_COOLDOWN_SECS: "3600"

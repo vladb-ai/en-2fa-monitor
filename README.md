@@ -66,7 +66,7 @@ service alongside the others. It needs no DB/EN access — only the L1 RPC:
       SIGNERS: $SIGNERS                       # comma-separated signer addresses
       NETWORK_NAME: "era-mainnet"
       MIN_BALANCE_ETH: "0.1"
-      EXEC_LAG_ALERT: "20"
+      EXEC_LAG_ALERT: "1"
       STALL_SECS: "10800"
       POLL_INTERVAL_SECS: "120"
       ALERT_COOLDOWN_SECS: "3600"

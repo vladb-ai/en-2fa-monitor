@@ -77,7 +77,7 @@ struct Args {
 
     /// Alert when (committed - executed) batches reaches at least this value AND execution has
     /// not advanced for `--stall-secs`. Catches a network that has stopped reaching threshold.
-    #[arg(long, env = "EXEC_LAG_ALERT", default_value_t = 10)]
+    #[arg(long, env = "EXEC_LAG_ALERT", default_value_t = 1)]
     exec_lag_alert: u64,
 
     /// How long execution may stall (no executed-batch progress) while there is a lag, and how
@@ -440,8 +440,11 @@ async fn run_cycle(
         )
         .await;
 
-    // --- Per-signer liveness: nonce static while there is work to do ---
-    if lag >= U256::from(exec_lag_alert) {
+    // --- Per-signer liveness: who is silent while execution is genuinely halted? ---
+    // Gated on `exec_stalled` (not just `lag`): with a low EXEC_LAG_ALERT and a k-of-n
+    // threshold, most signers are legitimately idle at any moment, so we only point at
+    // silent signers once the network has actually stopped executing.
+    if exec_stalled {
         for &signer in signers {
             if let Some(act) = activity.get(&signer) {
                 let idle = now.duration_since(act.nonce_changed_at) >= stall;
@@ -460,7 +463,7 @@ async fn run_cycle(
             }
         }
     } else {
-        // No pending work: clear any stale inactivity alerts so they resolve cleanly.
+        // Execution is progressing (or no real backlog): clear any stale inactivity alerts.
         for &signer in signers {
             alerts
                 .evaluate(
