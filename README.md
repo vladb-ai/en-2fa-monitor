@@ -77,7 +77,7 @@ service alongside the others. It needs no DB/EN access — only the L1 RPC:
 
 ```yaml
   en-2fa-monitor:
-    image: ghcr.io/vladb-ai/en-2fa-monitor:4e93a9b
+    image: ghcr.io/vladb-ai/en-2fa-monitor:93a4c40
     restart: always
     environment:
       ETH_RPC_URL: $ETH_RPC_URL

@@ -4,7 +4,7 @@ services:
     # Build from this repo. To use a prebuilt image instead, comment out `build`
     # and uncomment `image` below.
     build: .
-    # image: ghcr.io/vladb-ai/en-2fa-monitor:4e93a9b
+    # image: ghcr.io/vladb-ai/en-2fa-monitor:93a4c40
     restart: always
     # The binary reads all config from env vars (clap `env`). Secrets/RPC are
     # interpolated from a `.env` file next to this compose file (copy .env.example).

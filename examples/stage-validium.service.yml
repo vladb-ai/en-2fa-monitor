@@ -13,7 +13,7 @@
 # The image must be pullable: make the GHCR package public, or `docker login ghcr.io`.
 
   en-2fa-monitor:
-    image: ghcr.io/vladb-ai/en-2fa-monitor:4e93a9b
+    image: ghcr.io/vladb-ai/en-2fa-monitor:93a4c40
     restart: always
     command:
       - --eth-rpc-url=$ETH_RPC_URL
